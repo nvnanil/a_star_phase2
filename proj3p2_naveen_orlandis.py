@@ -1,139 +1,52 @@
 import numpy as np
-import math
-import cv2
-from math import dist
+import matplotlib.pyplot as plt
 import time
+import csv
 
-fourcc = cv2.VideoWriter_fourcc(*'XVID')                    
-out = cv2.VideoWriter('project_4.avi', fourcc, 30.0, (600, 250))
-
-#Creating work space
-b_canvas = np.zeros((250,600,3),np.uint8)
-width = 600
-height = 250
-
-thresh = 0.5
-angle_thresh = 30
-x_axis = np.arange(0, 600, thresh)
-y_axis = np.arange(0, 250, thresh)
-theta_grid = np.arange(0, 360, angle_thresh)
-theta_move = [-60, -30, 0, 30, 60]
-
-####################################Creating obstacle space
-def w_space(max_x,max_y, clear):
-    #Storing points of the array into an empty list
-    all_points = []
-    obstacle_space = []
-    for i in range(0,max_x):
-        for j in range(0,max_y): 
-            all_points.append((i,j)) #Appending all points to the list
-    for e in all_points:
-        x = e[1]
-        y = e[0]
-    #Defining obstacles using Half - Plane equations
-    #Lower rectangle
-        if y>=(100-clear) and y<=(150+clear) and x>=0 and x<=(100+clear):
-            obstacle_space.append((x,y))
-        elif y>=(100-clear) and y<=(150+clear) and x>=(150-clear) and x<=250: #Upper rectangle
-            obstacle_space.append((x,y))
-        if (y >= (460 - clear)) and (x >= (25 - clear)) and (x <= (225 + clear)) and ((-2*y + x) >= -895 + clear) and ((2*y + x) <= 1145 - clear):#Triangle
-            obstacle_space.append((x,y))
-        elif (y >= (235 - clear)) and (y <= (365 + clear)) and ((y + 2*x) >= 390 - clear) and ((y - 2*x) <= 210 + clear) and ((y - 2*x) >= -130 + clear) and ((y + 2*x) <= 710 + clear): #Hexagon
-            obstacle_space.append((x,y))
-    #Puffing the walls
-    for i in range(clear):
-        for j in range(b_canvas.shape[0]):
-            for k in range(b_canvas.shape[1]):
-                b_canvas[j][i] = (0,0,255)
-                b_canvas[i][k] = (0,0,255)
-                b_canvas[b_canvas.shape[0]-1-i][k] = (0,0,255)
-                b_canvas[j][b_canvas.shape[1]-1-i] = (0,0,255)
-    for c in obstacle_space: 
-        x = c[0]
-        y = c[1]
-        b_canvas[(x,y)]=[0,0,255] #Coloring the obstacles
-
-    ch1, ch2, ch3 = cv2.split(b_canvas)
-    ch3 = ch3.T
-
-    return (obstacle_space,ch3)
-
-####################################Creating nodes and storing in a dictionary
-def get_node( pos, theta, parent, cost):
-    Node  = {'pos': pos,
-             'theta': theta, 
-             'parent': parent, 
-             'cost': cost}
-    return Node
-
-def initial_nodes(start_key):
-  open_dict = {}
-  for x in x_axis: 
-    for y in y_axis:  
-        pos = (x, y)
-        for theta in theta_grid:  
-            open_dict[(pos, theta)] = get_node(pos, theta, None, np.inf) #Adding key inside key
-  open_dict[start_key]['cost'] = 0 #Assigning initial cost to be zero
-  return open_dict
-################################Goal check
-def is_goal(child_node, goal_pos, theta_goal):
-    dst = dist(child_node['pos'], goal_pos) #Calculating Euclidean distance
-    
-    dtheta = np.abs(child_node['theta'] - theta_goal)
-    if dst <= 1.5 and dtheta <= 30: #Goal reached
-        return  True
-    else: 
-        return False
-    
-##############################Back tracking
-def backtrack(b_node):
-    print("Generating optimal path")
-    path = []
-    while b_node['parent'] is not None:
-        path.append(b_node)
-        b_node = b_node['parent']
-    path.reverse()
-    return path
-
-#############################Defining movemnet
-def action(node_, theta, rpm1, rpm2):
+def cost(Xn,Yn,Theta,UL,UR):   
     t = 0
     dt = 0.1
-    r = 0.038
-    L = 0.354
-    x, y = node_['pos']
-    x_list = []
-    y_list = []
-    #n_theta = (node_['theta'] + theta)%360
-    r_theta = np.deg2rad(theta)
-    while t<1:
-        x_ = 0.5*r * (rpm1 + rpm2) * math.cos(r_theta) * dt + x
-        y_ = 0.5*r * (rpm1 + rpm2) * math.sin(r_theta) * dt + y
-        n_theta = (r / L) * (rpm2 - rpm1) * dt + n_theta
-        cost = dist([x,y],[x_,y_]) + cost
-        x_list.append(x_)
-        y_list.append(y_)
-    n_theta = np.rad2deg(n_theta)
-    f_theta = n_theta%360  
+    r = 3.3
+    L = 16
+    Thetan = 3.14 * Theta / 180       
+    D=0
+    while t<1.4:
+        t = t + dt
+        Xs = Xn
+        Ys = Yn
+        if (obstacle(Xs,Ys)):           
+            return 0,0,0,0
+        Xn += 0.5*r * (UL + UR) * np.cos(Thetan) * dt
+        Yn += 0.5*r * (UL + UR) * np.sin(Thetan) * dt
+        Thetan += (r/L) * (UR - UL) * dt
+        D += np.sqrt(np.power(0.5*r*(UL+UR)*np.cos(Thetan)*dt, 2) + np.power(0.5*r*(UL+UR)*np.sin(Thetan)*dt, 2))
+        if(nodes):
+            plt.plot([Xs, Xn], [Ys, Yn], color="green")
+        if(backtrack_nodes):
+            plt.plot([Xs, Xn], [Ys, Yn], color="red")
+            #print(UL, UR)
+    Thetan = 180 * (Thetan) / 3.14
+    return Xn, Yn, Thetan, D
 
-    for i in x_list:
-        for j in y_list:
-            if b_canvas[i][j] == (0,0,255):
-                break
-
-
-    #n_pos = ((x_//thresh)//2, (y_//thresh)//2)
-    return n_pos, n_theta, node_['cost'] + 1
-
- ###########################Checking if child node in obstacle path
-def o_space(pose):
-    x = int(pose[0])
-    y = int(pose[1])
-    if ch3[x][y] == 255:
+def obstacle(x,y): #Checking for obstacles
+    if(x>=150-cl)  and (x<=165+cl) and (y<=200) and (y>=75 - cl) or ((x>=250-cl) and (x<=265 + cl) and (y>=0) and (y<=125 + cl)) or (( 50 + cl >= np.sqrt((x-400)**2 + (y-110)**2))) or (x<=cl) or (x>=600-cl) or (y<=cl) or (y>=200-cl): 
         return True
-    else:
-        return False
-#######################################
+def actions(open_nodee, closed_node, goal_x, goal_y):     # produce children
+    children = []     #(tc,c2c,c2g, parent ID, x,y,theta,RPM1,RPM2)
+    actions = [[0,l_rpm],[l_rpm,0],[l_rpm,l_rpm],[0,r_rpm],[r_rpm,0],[r_rpm,r_rpm],[l_rpm,r_rpm],[r_rpm,l_rpm]] 
+    for action in actions:
+        x_,y_,theta,d= cost(open_nodee[5],open_nodee[6],open_nodee[7], action[0],action[1])
+        if(not (x_==0 and y_==0 and theta==0 and d==0)):  # checks if there is no obstacle
+            val = np.where((np.round(closed_node[:, 5] / 2) * 2 == np.round(x_ / 2) * 2) & (np.round(closed_node[:, 6] / 2) * 2 == np.round(y_ / 2) * 2)& (np.round(closed_node[:, 7] / 180) * 180 == np.round(theta / 180) * 180))[0]
+            if(val.size==0):            # if not in close list, append child
+                c2g = np.sqrt((goal_x - x_)**2 + (goal_y - y_)**2)
+                c2c = open_nodee[1]+d
+                total_cost = c2g + c2c
+                children.append([total_cost,c2c,c2g,open_nodee[3],x_, y_, theta,action[0],action[1]]) # create child
+    return children #Returns all the rpm
+
+thresh_g = 10 #Threshold for goal
+bot_radius = 10.5 
 print("---------------------------------------------------------")
 print("Path Planner | Workspace dimensions : 250X600 pixels")
 print("Accepted orinetation of the robot : -360 to 360: as mutiples of 30")
@@ -150,103 +63,110 @@ while ip:
     goal_y= int(input("Enter the y coordinate of the goal point: "))
     l_rpm = int(input("Enter Left wheel's RPM: "))
     r_rpm = int(input("Enter Right wheels's RPM: "))
-    cl = int(input("Enter the clearance of the robot "))
+    clear = int(input("Enter the clearance of the robot "))
 
-    clearance = cl
+    cl = 10.5 + clear
 
-    obstacles, ch3 = w_space(width,height,clearance)
-
-    if (theta_s % 30 != 0):
-        print('Invalid entry of orientation')
-        print("Try again")
-    elif (theta_g % 30 != 0):
-        print("Invalid entry of orientation")
-        print("Try again")
-    elif k not in range(0,11):
-        print("Enter K in the range of 1 to 10; Try again")
-    elif (start_x > b_canvas.shape[1] or start_y > b_canvas.shape[0] or goal_x > b_canvas.shape[1] or goal_y > b_canvas.shape[0]): #Checking whether outside the work space
-        print("Invalid input, entered value outside the path space")
-        print("Try Agian")
-    elif ch3[start_x][start_y] == 255 or ch3[goal_x][goal_y] == 255: #Checking for obstacles
-        print("Invalid input, entered value in obstacle space")
-        print("Try Again")
+    if(obstacle(start_x, start_y) or obstacle(goal_x,goal_y)): #Checks whether the entered points are in the obstacle space
+        print('Invalid input: Entered coordinates in obstacle space')
+        print('Try Again')
     else:
         ip = False
 
-if theta_s >= 360:
-        theta_s = theta_s - 360
-if theta_s >= -360 and theta_s < 0:
-        theta_s = theta_s + 360
-    
-s_node = (start_x,start_y)
-g_node = (goal_x, goal_y)
-s_node_key = (s_node,theta_s)
-nodes = initial_nodes(s_node_key)
 start_time = time.time()
-actions = [[0,l_rpm],[l_rpm,0],[l_rpm,l_rpm],[0,r_rpm],[r_rpm,0],[r_rpm,r_rpm],[l_rpm,r_rpm],[r_rpm,l_rpm]] 
+nodes=0 
+backtrack_nodes=0   
+#Initializing the open list and closed list 
+open_list = np.array([[0,0,0,1,0,start_x,start_y,theta_s,0,0]])  #total_cost, c2c, c2g, node_id, parent_id, x, y, theta , RPM1, RPM2        
+closed_list = np.array([[-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0]])                      
+node_id = 1  
+distance = np.sqrt((start_x - goal_x) ** 2 + (start_y - goal_y) ** 2)     
+print('Generating the shortest path')
 
-def a_star(g_node, theta_g):
-    open_dict = {s_node_key: dist(s_node, g_node)}
-    c_list = {s_node_key}
-    create = [nodes[s_node_key]] #Contains initial information
+while( (not (distance<=thresh_g)) and (not open_list.shape[0]==0)): # run loop until goal is reached or the open list becomes empty
+    distance = np.sqrt((closed_list[-1][5] - goal_x) ** 2 + (closed_list[-1][6] - goal_y) ** 2)       # updaes cost to go after each iteration
+    open_list = open_list[np.argsort(open_list[:, 0])] #Sorting by total cost
+    child = actions(open_list[0],closed_list, goal_x, goal_y)      
+    for i in range(len(child)): 
+        val = np.where((np.round(open_list[:, 5] / 2) * 2 == np.round(child[i][4] / 2) * 2) & (np.round(open_list[:, 6] / 2) * 2 == np.round(child[i][5] / 2) * 2)& (np.round(open_list[:, 7] / 180) * 180 == np.round(child[i][6] / 180) * 180))[0] #Checks whetehr child present in open list
+        if(val.size>0):
+            if (child[i][1] < open_list[int(val)][1]):  #Checking for lower cost     
+                    open_list[int(val)][0] = child[i][0]  
+                    open_list[int(val)][1] = child[i][1]   
+                    open_list[int(val)][4] = child[i][3]   
+                    open_list[int(val)][8] = child[i][7]     
+                    open_list[int(val)][9] = child[i][8]    
+        else:
+                open_list = np.vstack([open_list, [child[i][0],child[i][1],child[i][2], node_id+1,child[i][3],child[i][4],child[i][5],child[i][6],child[i][7],child[i][8]]])#Adding to open list
+                node_id +=1
+    closed_list = np.vstack([closed_list, open_list[0]]) #Pops from open list and adding to closed list
+    open_list = np.delete(open_list, 0, axis=0)
 
-    while len(open_dict): #Loop until open list is empty
-        key = min(open_dict, key = open_dict.get) #Finds the node with the smallest distance
-        c_list.add(key)
-        open_dict.pop(key)
-        m_node = nodes[key]
-        if is_goal(m_node, g_node, theta_g):
-            print("Goal reached")
-            return backtrack(child), create
-        for act in actions:
-            pos, theta, cost = action(m_node, theta_s, act[0], act[1]) #New node and cost
-            print("Node",pos)
-            if not o_space(pos) and (pos,theta) not in c_list:
-                child = nodes[(pos,theta)]
-                if cost < child['cost']:
-                    child['cost'] = cost
-                    child['parent'] = m_node
-                    open_dict[(pos, theta)] = cost + dist(pos, g_node)
-                    create.append(child)
-
-btrack , create = a_star(g_node,theta_g)
+print('Reached goal')
 print('Execuion time ' + str(time.time() - start_time) + ' seconds') 
-print("Generating video....")
+nodes=1
+print('Generating the graph...')
+fig, ax = plt.subplots()
+plt.xlim(0,600)
+plt.ylim(0,200)
+plt.plot(start_x, start_y, color='black', marker='o') #Marking the initial and final points
+plt.plot(goal_x, goal_y, color='black', marker='o')
 
-cv2.circle(b_canvas, (goal_x,b_canvas.shape[0]-goal_y), 2, (255, 255, 255), 2)
-cv2.circle(b_canvas, (start_x,b_canvas.shape[0]-start_y), 2, (255, 255, 255), 2)
+x, y = np.meshgrid(np.arange(0, 600), np.arange(0, 200)) #Creating the workspace
+rect1 = (x>=150-(cl)) & (x<=165 + (cl)) & (y<=200) & (y>=75 - (cl)) #Upper rectangle
+ax.fill(x[rect1], y[rect1], color='red')
+rect2 = (x>=250-(cl)) & (x<=265 + (cl)) & (y>=0) & (y<=125 + (cl)) #Lower rectangle
+ax.fill(x[rect2], y[rect2], color='red')
+circle = ( 50 + (cl) >= np.sqrt((x-400)**2 + (y-110)**2))
+ax.fill(x[circle], y[circle], color='red')
+boundary1 = (x<=(cl)) 
+ax.fill(x[boundary1], y[boundary1], color='red')
+boundary2 = (x>=600-(cl))
+ax.fill(x[boundary2], y[boundary2], color='red')
+boundary3 = (y<=(cl))
+ax.fill(x[boundary3], y[boundary3], color='red')
+boundary4 = (y>=200-(cl))
+ax.fill(x[boundary4], y[boundary4], color='red')
+                          
+frame1 = int(closed_list.shape[0]/50)
+for i in range(closed_list.shape[0]):
+    val = np.where(closed_list[i][4] == closed_list[:,3])[0]
+    if(val.size>0):
+        cost(closed_list[int(val)][5],closed_list[int(val)][6],closed_list[int(val)][7],closed_list[i][8],closed_list[i][9])
+        if i % frame1 == 0:
+            plt.pause(0.01)
+frame2 = int(open_list.shape[0]/50)
+for i in range(open_list.shape[0]):
+    val = np.where(open_list[i][4] == open_list[:, 3])[0]
+    if(val.size>0):
+        cost(open_list[int(val)][5],open_list[int(val)][6],open_list[int(val)][7],open_list[i][8],open_list[i][9])
+        if i % frame2 == 0:
+            plt.pause(0.01)
 
-for n in create:
-    i, j = n['pos'] #Extracts the position of the current node
-    parent = n['parent']
-    if parent is None:
-        parent = btrack[0]
-    i_, j_ = parent['pos']
-    cv2.arrowedLine(b_canvas, (int(i), int(249-j)), (int(i_), int(249-j_)), [0,250,0], 2)
-    out.write(b_canvas)
+backtrack_nodes=1
+nodes=0
+backtrack = np.empty((1, 5))
+node = closed_list[-2][4]
+left_rpm = closed_list [-2][8]
+right_rpm = closed_list[-2][9]
+UL = []
+UR = []
 
-print("Backtracked path")
+frame3 = int(backtrack.shape[0]/50)
+while (node):
+    val = np.where(closed_list[:, 3] == node)[0]
+    backtrack=np.vstack([backtrack, [closed_list[int(val)][5],closed_list[int(val)][6],closed_list[int(val)][7],left_rpm,right_rpm]])
+    left_rpm=closed_list[int(val)][8]
+    right_rpm=closed_list[int(val)][9]
+    node = closed_list[int(val)][4]
 
-if btrack is not None:
-    for n in btrack:
-        print(n['pos'], n['theta'])
-        i, j = n['pos']
-        parent = n['parent']
-        if parent is None:
-            parent = btrack[0]
-        i_, j_ = parent['pos']
-        cv2.arrowedLine(b_canvas, (int(i), int(249-j)), (int(i_), int(249-j_)), [255,0,0], 1)
-        out.write(b_canvas)
-
-out.release()
-print("Video saved")
-            
-
-            
-
-
-
-
-
-    
-    
+backtrack = np.flip(backtrack,axis = 0)
+with open('t_rpm.csv', 'w', newline='') as file:#Storing rpm in csv file
+    writer = csv.writer(file)
+    for i in range(backtrack.shape[0]):
+        cost(backtrack[i][0],backtrack[i][1],backtrack[i][2],backtrack[i][3],backtrack[i][4]) #Genearting the coordinates rpm, and theta
+        UL.append(backtrack[i][3])
+        UR.append(backtrack[i][4])
+        plt.pause(0.01)
+        writer.writerow([backtrack[i][3], backtrack[i][4]])
+plt.show()
