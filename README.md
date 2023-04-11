@@ -52,6 +52,7 @@ cd ~/catkin_ws
 catkin build
 roslaunch bot_astar turtlebot3_control.py
 ```
+```
 *Input Parameters*
 For visulaizing Turtlebot in Gazebo, run the script from Part01 with the following input parameters (all parameters are in cm):
     - start_point_x, start_point_y = (50,100) 
@@ -64,3 +65,4 @@ Place the csv files generated inside ~/catkin_ws/src/bot_astar/data
 and rebuild your package. Follow Part02: Gazebo Visulaization instructions to launch the file
 
 *Note: For other parameters the turtlebot may not followe the optimal path*
+```
